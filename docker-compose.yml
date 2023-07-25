@@ -1,0 +1,35 @@
+version: "3"
+
+services:
+  node-1:
+    build: ./server
+    container_name: node-1
+    environment:
+      - NODE_NAME=node-1
+    volumes:
+      - ./server/src:/src/src
+    ports:
+      - "8001:8000"
+    command: ["uvicorn", "src.server_api:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]
+
+  node-2:
+    build: ./server
+    container_name: node-2
+    environment:
+      - NODE_NAME=node-2
+    volumes:
+      - ./server/src:/src/src
+    ports:
+      - "8002:8000"
+    command: [ "uvicorn", "src.server_api:app", "--reload", "--host", "0.0.0.0", "--port", "8000" ]
+
+  node-3:
+    build: ./server
+    container_name: node-3
+    environment:
+      - NODE_NAME=node-3
+    volumes:
+      - ./server/src:/src/src
+    ports:
+      - "8003:8000"
+    command: [ "uvicorn", "src.server_api:app", "--reload", "--host", "0.0.0.0", "--port", "8000" ]
