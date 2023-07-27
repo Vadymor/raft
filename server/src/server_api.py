@@ -1,4 +1,5 @@
 import os
+import time
 import logging as lg
 from datetime import datetime
 
@@ -11,20 +12,89 @@ from pydantic import BaseModel
 from enum import Enum
 import requests
 import asyncio
+import random
+import threading
 
 
 lg.basicConfig(level=lg.INFO)
 
 app = FastAPI()
 
-session: aiohttp.ClientSession | None = None
-
 NODES = ('node-1', 'node-2', 'node-3')
+
+
+LOW_TIMEOUT = 2500
+HIGH_TIMEOUT = 5000
+
+REQUESTS_TIMEOUT = 1000
+HB_TIME = 1000
+MAX_LOG_WAIT = 1000
+
+
+class Node:
+    def __init__(self, own_host, others_host):
+        self.role = 'FOLLOWER'
+        self.term = 0
+        self.commit_idx = 0
+        self.own_host = own_host
+        self.others_host = others_host
+        self.majority = ((len(self.others_host) + 1) // 2) + 1
+        self.election_timeout = None
+        self.timeout_thread: threading.Thread | None = None
+        self.staged = {}
+        self.initial()
+
+    @staticmethod
+    def random_timeout():
+        return random.randrange(LOW_TIMEOUT, HIGH_TIMEOUT) / 1000
+
+    def initial(self):
+        self.set_election_timeout()
+
+        if self.timeout_thread and self.timeout_thread.isAlive():
+            return
+
+        self.timeout_thread = threading.Thread(target=self.timeout_loop)
+        self.timeout_thread.start()
+
+    def set_election_timeout(self):
+        self.election_timeout = time.time() + self.random_timeout()
+
+    def timeout_loop(self):
+        # цей метод робить таймаут перед тим, як розпочати вибори лідера.
+
+        while self.role != 'LEADER':
+            delta = self.election_timeout - time.time()
+            if delta < 0:
+                self.start_election()
+            else:
+                time.sleep(delta)
+
+    def start_election(self):
+        pass
+
+    def vote_decision(self, term, commit_idx, staged):
+
+        if self.term < term and self.commit_idx <= commit_idx and (staged or (self.staged == staged)):
+            self.set_election_timeout()
+            self.term = term
+            return True, self.term
+        else:
+            return False, self.term
+
+
+current_node: Node | None = None
 
 
 class HeartbeatResponse(BaseModel):
     status: str
     timestamp: str
+
+
+class Message(BaseModel):
+    term: int
+    commit_idx: int
+    staged: dict
 
 
 async def send_heartbeat(receiver_url: str):
@@ -61,21 +131,24 @@ async def heartbeat():
 
 @app.on_event('startup')
 async def startup_event():
-    global session
-    session = aiohttp.ClientSession()
+    global current_node
 
     my_node_name = os.environ.get('NODE_NAME')
     lg.info(f"Im HERE {my_node_name}")
 
-    receiver_urls = [f"http://{node}:{8000}/heartbeat" for node in NODES if node != my_node_name]
+    others_node_name = [node_name for node_name in NODES if node_name != my_node_name]
 
-    for url in receiver_urls:
-        task = asyncio.create_task(send_heartbeat(url))
+    current_node = Node(own_host=my_node_name, others_host=others_node_name)
 
 
-@app.on_event('shutdown')
-async def shutdown_event():
-    await session.close()
+@app.post('/vote_request')
+async def vote_request(message: Message):
+    global current_node
+    term = message.term
+    commit_idx = message.commit_idx
+    staged = message.staged
+
+    choice, term = current_node
 
 
 @app.get('/message')
