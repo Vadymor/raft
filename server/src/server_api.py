@@ -125,7 +125,7 @@ class Node:
                          args=(log_message, log_confirmations)).start()
         while sum(log_confirmations) + 1 < self.majority:
             waited += WAIT_FOR_REPLICATION
-            time.sleep(WAIT_FOR_REPLICATION)
+            time.sleep(WAIT_FOR_REPLICATION/1000)
 
             if waited > MAX_LOG_WAIT:
                 lg.info(f"Waited {MAX_LOG_WAIT} ms, update rejected")
@@ -183,6 +183,7 @@ class Node:
 
             message = {'term': self.term, 'leader_id': self.own_host}
             if response:
+                lg.info(f"heartbeat key {response}")
                 follower_commit_idx = self.heartbeat_response_handler(response)
 
                 if follower_commit_idx < self.commit_idx:
@@ -227,9 +228,8 @@ class Node:
             self.term = term
             self.role = 'FOLLOWER'
             self.initial()
-        else:
-            commit_idx = hb_response.json()['commit_idx']
-            return commit_idx
+        commit_idx = hb_response.json()['commit_idx']
+        return commit_idx
 
     def vote_decision(self, term, commit_idx, staged):
 
@@ -296,8 +296,7 @@ class Node:
                     payload = msg['payload']
                     self.staged = payload
                 elif self.commit_idx <= msg['commit_idx']:
-                    if not self.staged:
-                        self.staged = msg['payload']
+                    self.staged = msg['payload']
                     self.commit()
 
         return self.term, self.commit_idx
@@ -309,7 +308,7 @@ current_node: Node | None = None
 class VoteMessage(BaseModel):
     term: int
     commit_idx: int
-    staged: dict
+    staged: Optional[dict] = None
 
 
 class Message(BaseModel):

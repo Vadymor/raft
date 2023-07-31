@@ -1,35 +1,86 @@
 version: "3"
 
 services:
-  node-1:
+  raft-1:
     build: ./server
-    container_name: node-1
+    container_name: raft-1
+    networks:
+      network1:
+        ipv4_address: 172.18.0.2
+      network2:
+        ipv4_address: 172.20.0.2
     environment:
       - NODE_NAME=node-1
     volumes:
       - ./server/src:/src/src
     ports:
       - "8001:8000"
+    cap_add:
+      - NET_ADMIN
     command: ["uvicorn", "src.server_api:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]
+    dns:
+      - 172.18.0.250  # IP адреса dnsmasq контейнера
 
-  node-2:
+  raft-2:
     build: ./server
-    container_name: node-2
+    container_name: raft-2
+    networks:
+      network1:
+        ipv4_address: 172.18.0.3
+      network2:
+        ipv4_address: 172.20.0.3
     environment:
       - NODE_NAME=node-2
     volumes:
       - ./server/src:/src/src
     ports:
       - "8002:8000"
+    cap_add:
+      - NET_ADMIN
     command: [ "uvicorn", "src.server_api:app", "--reload", "--host", "0.0.0.0", "--port", "8000" ]
+    dns:
+      - 172.18.0.250  # IP адреса dnsmasq контейнера
 
-  node-3:
+  raft-3:
     build: ./server
-    container_name: node-3
+    container_name: raft-3
+    networks:
+      network1:
+        ipv4_address: 172.18.0.4
+      network2:
+        ipv4_address: 172.20.0.4
     environment:
       - NODE_NAME=node-3
     volumes:
       - ./server/src:/src/src
     ports:
       - "8003:8000"
+    cap_add:
+      - NET_ADMIN
     command: [ "uvicorn", "src.server_api:app", "--reload", "--host", "0.0.0.0", "--port", "8000" ]
+    dns:
+      - 172.18.0.250  # IP адреса dnsmasq контейнера
+
+  dnsmasq:
+    image: 4km3/dnsmasq:2.85-r2
+    container_name: dnsmasq
+    networks:
+      network1:
+        ipv4_address: 172.18.0.250
+    cap_add:
+      - NET_ADMIN
+    command: ["--address=/node-1/172.20.0.2", "--address=/node-2/172.20.0.3", "--address=/node-3/172.20.0.4"]
+    restart: always
+
+networks:
+  network1:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: "172.18.0.0/16"
+
+  network2:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: "172.20.0.0/16"
