@@ -13,7 +13,7 @@ RAFT protocol implementation with Python, FastAPI and Docker.
 - *POST* /message - This method stands for passing messages to leader node. This method expects messages in key-value format.
   - Attention: You should send messages only to leader. You can find who is leader in docker containers logs.
   
-    =='term': self.term, 'leader_id': self.own_host==
+    'term': self.term, 'leader_id': self.own_host
 
 ## Setup
 
